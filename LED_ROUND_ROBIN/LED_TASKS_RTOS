@@ -1,1 +1,17 @@
 
+This bare-metal RTOS achieves multitasking on the STM32F411RET6 by executing direct hardware manipulation, removing the reliance on external libraries.
+It shifts between tasks using a Round-Robin scheduler triggered by the ARM Cortex-M4's internal SysTick timer, which is configured to issue an interrupt every 1 millisecond.
+
+Multitasking relies entirely on manipulating the Process Stack Pointer (PSP) and utilizing the PendSV (Pendable Service Call) exception to perform the actual context switch.
+When the SysTick interrupt fires, it switches the active task index and pends the PendSV exception, which executes at the lowest priority to guarantee system stability.
+
+Inside the naked assembly function PendSV_Handler, the context switch takes place in two discrete phases:
+
+Saving Context: The state of the currently executing task is preserved. The hardware automatically saves registers R0–R3, R12, LR, PC, and xPSR onto its stack. 
+The assembly code then manually pushes the remaining registers (R4–R11) and stores the updated stack pointer into that task's Task Control Block (TCB).
+
+Loading Context: The incoming task's TCB is read to find its saved stack pointer. The assembly engine manually restores registers R4–R11,
+loads the new address into the CPU's PSP register, and branches to the special execution return code 0xFFFFFFFD.
+
+This return value forces the ARM core to automatically pop the remaining registers off the new task's stack. 
+The CPU reads the task's entry point from the restored Program Counter (PC), smoothly resuming execution of the next application loop.
